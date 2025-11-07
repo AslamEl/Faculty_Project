@@ -2,17 +2,39 @@ import os
 import pickle
 from deepface import DeepFace
 
+# --- NEW: We must manually teach the script the gender of each celebrity ---
+# I have sorted the 84 names from your log file.
+male_list = [
+    "Adam Driver", "Ajith Kumar", "Allu Arjun", "Benedict Cumberbatch", "Brad Pitt",
+    "Chris Hemsworth", "Chris Pratt", "Cillian Murphy", "Cristiano Ronaldo", "David Beckham",
+    "Denzel Washington", "Dwayne Johnson", "George Clooney", "Hrithik Roshan", "Idris Elba",
+    "Jackie Chan", "Keanu Reeves", "Kumar Sangakkara", "Leonardo DiCaprio", "Lionel Messi",
+    "Mads Mikkelsen", "Mahela Jayawardene", "Matt Damon", "Michael B. Jordan", "Morgan Freeman",
+    "Prabhas", "Ram Charan", "Robert Downey Jr", "Roshan Ranawana", "Ryan Gosling",
+    "Ryan Reynolds", "Salman Khan", "Samuel L. Jackson", "Sanath Gunathilake", "Shah Rukh Khan",
+    "Suriya", "Timothee Chalamet", "Tom Cruise", "Tom Hanks", "Tom Holland", "Vijay",
+    "Vikram", "Will Smith", "Yash"
+]
+
+female_list = [
+    "Aishwarya Rai", "Alia Bhatt", "Angelina Jolie", "Anne Hathaway", "Anushka Shetty",
+    "Anya Taylor-Joy", "Ariana Grande", "Beyonce", "Cate Blanchett", "Charlize Theron",
+    "Deepika Padukone", "Dinakshie Priyasad", "Emily Blunt", "Emma Watson", "Gal Gadot",
+    "Jacqueline Fernandez", "Jenna Ortega", "Jennifer Aniston", "Jennifer Lawrence",
+    "Jessica Chastain", "Julia Roberts", "Kajol", "Kareena Kapoor", "Katrina Kaif",
+    "Margot Robbie", "Meryl Streep", "Michelle Yeoh", "Natalie Portman", "Nayanthara",
+    "Nicole Kidman", "Penelope Cruz", "Pooja Umashankar", "Priyanka Chopra", "Rashmika Mandanna",
+    "Rihanna", "Salma Hayek", "Samantha Ruth Prabhu", "Sandra Bullock", "Scarlett Johansson",
+    "Serena Williams", "Taylor Swift", "Tilda Swinton", "Trisha Krishnan", "Udari Warnakulasooriya",
+    "Viola Davis", "Yashoda Wimaladharma", "Zendaya"
+]
+
 print("[INFO] Starting to encode faces from ALL albums...")
-
-# --- KEY CHANGE ---
-# List of all your celebrity folders
 album_dirs = ["./Celebrity_Album", "./Celebrity_Album_Set2"]
-# --- END CHANGE ---
-
 model_name = "VGG-Face"
 all_encodings = []
 
-# Loop over each main album directory (Set 1, Set 2, etc.)
+# Loop over each main album directory
 for celebrity_dir in album_dirs:
     print(f"[INFO] Processing album: {celebrity_dir}")
     if not os.path.exists(celebrity_dir):
@@ -23,46 +45,51 @@ for celebrity_dir in album_dirs:
     for person_name in os.listdir(celebrity_dir):
         person_dir = os.path.join(celebrity_dir, person_name)
         
-        # Ensure it's a directory
         if not os.path.isdir(person_dir):
             continue
-            
-        print(f"  [INFO] Processing: {person_name}")
+
+        # --- NEW: Determine gender ---
+        gender = "Unknown"
+        if person_name in male_list:
+            gender = "Man"
+        elif person_name in female_list:
+            gender = "Woman"
         
-        # Loop over each image of that person
+        if gender == "Unknown":
+            print(f"  [WARN] Skipping {person_name}: Not found in gender lists.")
+            continue
+            
+        print(f"  [INFO] Processing: {person_name} (Gender: {gender})")
+        
+        # Loop over each image
         for image_name in os.listdir(person_dir):
             image_path = os.path.join(person_dir, image_name)
             
-            # Check for valid image extensions
             if not image_name.lower().endswith(('.png', '.jpg', '.jpeg')):
-                print(f"    [SKIP] '{image_name}' is not an image.")
                 continue
                 
             try:
-                # Get the "secret code" (embedding)
                 embedding_obj = DeepFace.represent(
                     img_path=image_path, 
                     model_name=model_name,
-                    enforce_detection=True # Crash if no face is found
+                    enforce_detection=True
                 )
-                
                 embedding = embedding_obj[0]["embedding"]
                 
-                # Store the embedding and the name
+                # --- NEW: Save gender in the database ---
                 all_encodings.append({
                     "name": person_name,
-                    "embedding": embedding
+                    "embedding": embedding,
+                    "gender": gender
                 })
                 
             except Exception as e:
-                # This will catch errors if DeepFace can't find a face
                 print(f"    [ERROR] Could not process '{image_path}': {e}")
 
-# --- KEY CHANGE ---
-# Save all combined data to a new "master" file
-output_file = "deepface_encodings_ALL.pickle"
+# --- NEW: Save to a new v2 file ---
+output_file = "deepface_encodings_ALL_v2.pickle"
 print(f"\n[INFO] Serializing {len(all_encodings)} total encodings...")
 with open(output_file, "wb") as f:
     f.write(pickle.dumps(all_encodings))
 
-print(f"[INFO] All faces from both albums encoded and saved to '{output_file}'")
+print(f"[INFO] All faces encoded and saved to '{output_file}'")
